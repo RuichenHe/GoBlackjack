@@ -9,6 +9,7 @@ import (
 
 type Hand []deck.Card
 
+//test
 func (h Hand) String() string {
 	strs := make([]string, len(h))
 	for i := range h {
