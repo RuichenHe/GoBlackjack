@@ -77,12 +77,16 @@ type hand struct {
 
 func bet(g *Game, ai AI, shuffled bool) {
 	bet := ai.Bet(shuffled)
+	if bet < 100 {
+		panic("bet must be at least 100")
+	}
 	g.playerBet = bet
 }
 
 func deal(g *Game) {
 	playerHand := make([]deck.Card, 0, 5)
 	g.dealer = make([]deck.Card, 0, 5)
+	g.handIdx = 0
 	var card deck.Card
 	for i := 0; i < 2; i++ {
 		card, g.deck = draw(g.deck)
@@ -175,7 +179,7 @@ func MoveSplit(g *Game) error {
 }
 
 func MoveDouble(g *Game) error {
-	if len(g.player) != 2 {
+	if len(*g.currentHand()) != 2 {
 		return errors.New("can only double on a hand with 2 cards")
 	}
 	g.playerBet *= 2
@@ -236,7 +240,7 @@ func endRound(g *Game, ai AI) {
 	ai.Results(allHands, g.dealer)
 	g.player = nil
 	g.dealer = nil
-	g.handIdx = 0
+
 }
 
 func Score(hand ...deck.Card) int {
