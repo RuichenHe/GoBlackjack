@@ -14,21 +14,47 @@ const (
 	stateHandOver
 )
 
-func New() Game {
-	return Game{
+type Options struct {
+	Decks           int
+	Hands           int
+	BlackjackPayout float64
+}
+
+func New(opts Options) Game {
+	g := Game{
 		state:    statePlayerTurn,
 		dealerAI: dealerAI{},
 		balance:  0,
 	}
+	if opts.Decks == 0 {
+		opts.Decks = 3
+	}
+	if opts.Hands == 0 {
+		opts.Hands = 100
+	}
+	if opts.BlackjackPayout == 0.0 {
+		opts.BlackjackPayout = 1.5
+	}
+	g.nDecks = opts.Decks
+	g.nHands = opts.Hands
+	g.blackjackPayout = opts.BlackjackPayout
+	return g
 }
 
 type Game struct {
-	deck     []deck.Card
-	state    state
-	player   []deck.Card
-	dealer   []deck.Card
-	dealerAI AI
-	balance  int
+	nDecks int
+	nHands int
+
+	state state
+	deck  []deck.Card
+
+	player    []deck.Card
+	playerBet int
+	balance   int
+
+	dealer          []deck.Card
+	dealerAI        AI
+	blackjackPayout float64
 }
 
 func (g *Game) currentHand() *[]deck.Card {
@@ -40,6 +66,14 @@ func (g *Game) currentHand() *[]deck.Card {
 	default:
 		panic("it isn't currentlly any player's turn")
 	}
+}
+
+func bet(g *Game, ai AI, shuffled bool) {
+	if shuffled {
+		fmt.Println("The deck was just shuffled.")
+	}
+	bet := ai.Bet(shuffled)
+	g.playerBet = bet
 }
 
 func deal(g *Game) {
@@ -55,8 +89,15 @@ func deal(g *Game) {
 	g.state = statePlayerTurn
 }
 func (g *Game) Play(ai AI) int {
-	g.deck = deck.New(deck.Deck(3), deck.Shuffle)
-	for i := 0; i < 2; i++ {
+	g.deck = nil
+	min := 52 * g.nDecks / 3
+	for i := 0; i < g.nHands; i++ {
+		shuffled := false
+		if len(g.deck) < min {
+			g.deck = deck.New(deck.Deck(g.nDecks), deck.Shuffle)
+			shuffled = true
+		}
+		bet(g, ai, shuffled)
 		deal(g)
 		for g.state == statePlayerTurn {
 			hand := make([]deck.Card, len(g.player))
@@ -98,22 +139,27 @@ func draw(cards []deck.Card) (deck.Card, []deck.Card) {
 
 func endHand(g *Game, ai AI) {
 	pScore, dScore := Score(g.player...), Score(g.dealer...)
+	pBlackjack, dBlackjack := Blackjack(g.player...), Blackjack(g.dealer...)
+	winnings := g.playerBet
 	switch {
+	case pBlackjack && dBlackjack:
+		winnings = 0
+	case dBlackjack:
+		winnings = -winnings
+	case pBlackjack:
+		winnings = int(float64(winnings) * g.blackjackPayout)
 	case pScore > 21:
-		fmt.Println("You busted")
-		g.balance--
+		winnings *= -1
 	case dScore > 21:
-		fmt.Println("Dealer busted")
-		g.balance++
+		//win
 	case pScore > dScore:
-		fmt.Println("You win!")
-		g.balance++
+		//win
 	case pScore < dScore:
-		fmt.Println("You lose...")
-		g.balance--
+		winnings *= -1
 	case pScore == dScore:
-		fmt.Println("Draw.")
+		winnings = 0
 	}
+	g.balance += winnings
 	fmt.Println()
 	ai.Results([][]deck.Card{g.player}, g.dealer)
 	g.player = nil
@@ -137,6 +183,9 @@ func Soft(hand ...deck.Card) bool {
 	minScore := minScore(hand...)
 	score := Score(hand...)
 	return minScore != score
+}
+func Blackjack(hand ...deck.Card) bool {
+	return len(hand) == 2 && Score(hand...) == 21
 }
 func minScore(hand ...deck.Card) int {
 	score := 0
