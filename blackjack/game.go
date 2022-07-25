@@ -56,7 +56,7 @@ func deal(g *Game) {
 }
 func (g *Game) Play(ai AI) int {
 	g.deck = deck.New(deck.Deck(3), deck.Shuffle)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 2; i++ {
 		deal(g)
 		for g.state == statePlayerTurn {
 			hand := make([]deck.Card, len(g.player))
